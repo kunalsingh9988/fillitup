@@ -13,6 +13,17 @@ import LoginPage from "@/pages/auth/login"
 import SignupPage from "@/pages/auth/signup"
 import ForgotPasswordPage from "@/pages/auth/forgot-password"
 import AppPlaceholder from "@/pages/app-placeholder"
+import EmployerLayout from "@/components/employer/employer-layout"
+import EmployerDashboard from "@/pages/employer/dashboard"
+import EmployerCompanyProfile from "@/pages/employer/company-profile"
+import EmployerJobs from "@/pages/employer/jobs"
+import PostJobWizard from "@/pages/employer/post-job"
+import EmployerCandidates from "@/pages/employer/candidates"
+import CandidateDetail from "@/pages/employer/candidate-detail"
+import EmployerAnalytics from "@/pages/employer/analytics"
+import EmployerTeam from "@/pages/employer/team"
+import EmployerMessages from "@/pages/employer/messages"
+import EmployerSettings from "@/pages/employer/settings"
 import NotFoundPage from "@/pages/not-found"
 
 export default function App() {
@@ -34,9 +45,22 @@ export default function App() {
         <Route path="forgot-password" element={<ForgotPasswordPage />} />
       </Route>
 
+      {/* employer app */}
+      <Route path="employer" element={<EmployerLayout />}>
+        <Route index element={<EmployerDashboard />} />
+        <Route path="company" element={<EmployerCompanyProfile />} />
+        <Route path="jobs" element={<EmployerJobs />} />
+        <Route path="jobs/new" element={<PostJobWizard />} />
+        <Route path="candidates" element={<EmployerCandidates />} />
+        <Route path="candidates/:id" element={<CandidateDetail />} />
+        <Route path="analytics" element={<EmployerAnalytics />} />
+        <Route path="team" element={<EmployerTeam />} />
+        <Route path="messages" element={<EmployerMessages />} />
+        <Route path="settings" element={<EmployerSettings />} />
+      </Route>
+
       {/* app shells — real dashboards land in later phases */}
       <Route path="app/*" element={<AppPlaceholder />} />
-      <Route path="employer/*" element={<AppPlaceholder />} />
       <Route path="mentor/*" element={<AppPlaceholder />} />
 
       <Route path="*" element={<NotFoundPage />} />
