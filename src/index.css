@@ -1,0 +1,268 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+
+@custom-variant dark (&:is(.dark *));
+
+/* --------------------------------------------------------
+   Fill-it-up design tokens — extracted from the Figma source file
+   Light theme = :root defaults, dark = .dark (site default)
+   -------------------------------------------------------- */
+
+:root {
+  --background: #f8f9fb;
+  --foreground: #0d0d0d;
+  --card: #ffffff;
+  --card-foreground: #0d0d0d;
+  --popover: #ffffff;
+  --popover-foreground: #0d0d0d;
+  --primary: #2479ff;
+  --primary-foreground: #ffffff;
+  --primary-hover: #0070f0;
+  --secondary: #edf0f5;
+  --secondary-foreground: #21242b;
+  --muted: #edf0f5;
+  --muted-foreground: #656972;
+  --accent: #e7eefc;
+  --accent-foreground: #0b1530;
+  --accent-indigo: #4a3aff;
+  --destructive: #dc2828;
+  --destructive-foreground: #ffffff;
+  --success: #22a55b;
+  --success-foreground: #ffffff;
+  --warning: #d98e00;
+  --warning-foreground: #ffffff;
+  --border: #e2e4e9;
+  --input: #d6d9e0;
+  --ring: #2479ff;
+  --surface-glass: rgb(255 255 255 / 0.7);
+  --glow: rgb(36 121 255 / 0.25);
+  --hero-glow-opacity: 0;
+  --dot-color: rgb(13 13 13 / 0.07);
+  --shadow-sm: 0 1px 2px rgb(13 13 13 / 0.05);
+  --shadow-md: 0 4px 16px rgb(13 13 13 / 0.08);
+  --shadow-lg: 0 12px 40px rgb(13 13 13 / 0.12);
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: #09090c;
+  --foreground: #f8f9fb;
+  --card: #121319;
+  --card-foreground: #f8f9fb;
+  --popover: #121319;
+  --popover-foreground: #f8f9fb;
+  --primary: #2479ff;
+  --primary-foreground: #ffffff;
+  --primary-hover: #3e95ff;
+  --secondary: #16181d;
+  --secondary-foreground: #e2e4e9;
+  --muted: #16181d;
+  --muted-foreground: #a7afbe;
+  --accent: #1f2228;
+  --accent-foreground: #f8f9fb;
+  --accent-indigo: #4a3aff;
+  --destructive: #e54b4b;
+  --destructive-foreground: #ffffff;
+  --success: #22b864;
+  --success-foreground: #06210f;
+  --warning: #f5a524;
+  --warning-foreground: #241500;
+  --border: #21242b;
+  --input: #2a2d36;
+  --ring: #3e95ff;
+  --surface-glass: rgb(18 19 25 / 0.6);
+  --glow: rgb(36 121 255 / 0.35);
+  --hero-glow-opacity: 1;
+  --dot-color: rgb(226 228 233 / 0.055);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 16px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 12px 40px rgb(0 0 0 / 0.6);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-indigo: var(--accent-indigo);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-glass: var(--surface-glass);
+
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: "Cabinet Grotesk", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+
+  --shadow-card: var(--shadow-sm);
+  --shadow-elevated: var(--shadow-md);
+  --shadow-float: var(--shadow-lg);
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--radix-accordion-content-height); }
+  }
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0; }
+  }
+}
+
+/* ------------------------------ base ------------------------------ */
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01";
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6, .font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+::selection {
+  background: rgb(36 121 255 / 0.35);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+  border: 2px solid var(--background);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
+/* --------------------------- utilities ---------------------------- */
+
+/* faint dot-grid texture */
+.dot-grid {
+  background-image: radial-gradient(circle, var(--dot-color) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* electric-blue radial glow used behind heroes */
+.hero-glow {
+  position: relative;
+  isolation: isolate;
+}
+.hero-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: var(--hero-glow-opacity);
+  background:
+    radial-gradient(ellipse 60% 45% at 50% -5%, rgb(36 121 255 / 0.4), transparent 65%),
+    radial-gradient(ellipse 40% 30% at 50% 0%, rgb(74 58 255 / 0.25), transparent 70%);
+  pointer-events: none;
+}
+
+/* glass card surfaces (matches figma "Overlay+Border+Shadow+OverlayBlur") */
+.glass {
+  background: var(--surface-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+}
+
+.card-elevated {
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.text-gradient {
+  background: linear-gradient(120deg, var(--foreground) 30%, var(--primary) 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.link-underline {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--border);
+}
+.link-underline:hover {
+  text-decoration-color: var(--primary);
+}
+
+/* entrance animation */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+  animation: fade-up 0.5s ease-out both;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.9; }
+}
+.animate-pulse-glow {
+  animation: pulse-glow 4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+  html { scroll-behavior: auto; }
+}
