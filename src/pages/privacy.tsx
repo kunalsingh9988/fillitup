@@ -6,7 +6,7 @@ const sections = [
   {
     title: "Information We Collect",
     body: [
-      "Account information — name, email address, phone number, and password when you register.",
+      "Account information — name, email address, and password when you register.",
       "Profile data — work history, skills, education, and preferences parsed from resumes you upload.",
       "Usage data — pages viewed, searches, applications, and feature interactions to improve matching.",
       "Device & log data — IP address, browser type, and timestamps for security and abuse prevention.",

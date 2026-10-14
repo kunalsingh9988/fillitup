@@ -18,8 +18,6 @@ interface AuthContextValue {
   signInWithOAuth: (provider: "google" | "linkedin", role?: Role) => Promise<void>
   signOut: () => void
   requestPasswordReset: (email: string) => Promise<void>
-  requestOtp: (phone: string) => Promise<void>
-  verifyOtp: (phone: string, code: string) => Promise<AuthUser>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -163,24 +161,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error
   }, [])
 
-  const requestOtp = useCallback(async (phone: string) => {
-    const { error } = await supabase.auth.signInWithOtp({ phone })
-    if (error) throw error
-  }, [])
-
-  const verifyOtp = useCallback(async (phone: string, code: string) => {
-    const { data, error } = await supabase.auth.verifyOtp({
-      phone,
-      token: code,
-      type: "sms",
-    })
-    if (error) throw error
-    if (!data.user) throw new Error("Verification failed")
-    const u = await fetchProfile(data.user.id, data.user.email ?? "")
-    setUser(u)
-    return u
-  }, [])
-
   return (
     <AuthContext.Provider
       value={{
@@ -191,8 +171,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signInWithOAuth,
         signOut,
         requestPasswordReset,
-        requestOtp,
-        verifyOtp,
       }}
     >
       {children}
