@@ -1,7 +1,6 @@
-import { useNavigate } from "react-router-dom"
 import { useState } from "react"
 
-import { useAuth, roleHome } from "@/lib/auth"
+import { useAuth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import type { Role } from "@/lib/types"
 
@@ -23,17 +22,17 @@ function LinkedInIcon() {
     </svg>
   )
 }
+void LinkedInIcon // retained for when LinkedIn OAuth is enabled
 
 export function OAuthButtons({ role, label }: { role?: Role; label?: string }) {
   const { signInWithOAuth } = useAuth()
-  const navigate = useNavigate()
   const [pending, setPending] = useState<string | null>(null)
 
   const go = async (provider: "google" | "linkedin") => {
     setPending(provider)
     try {
-      const user = await signInWithOAuth(provider, role)
-      navigate(roleHome(user.role))
+      // redirects the browser to the provider; session lands via onAuthStateChange
+      await signInWithOAuth(provider, role)
     } finally {
       setPending(null)
     }
@@ -46,7 +45,7 @@ export function OAuthButtons({ role, label }: { role?: Role; label?: string }) {
         <span className="text-[13px] text-muted-foreground">{label ?? "More ways to log in"}</span>
         <span className="h-px flex-1 bg-border" />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-3">
         <Button
           type="button"
           variant="outline"
@@ -54,16 +53,7 @@ export function OAuthButtons({ role, label }: { role?: Role; label?: string }) {
           disabled={pending !== null}
         >
           <GoogleIcon />
-          Google
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => go("linkedin")}
-          disabled={pending !== null}
-        >
-          <LinkedInIcon />
-          LinkedIn
+          Continue with Google
         </Button>
       </div>
     </div>

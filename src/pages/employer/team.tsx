@@ -4,7 +4,6 @@ import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
 import { useEmployer } from "@/lib/employer-store"
-import { activityLog } from "@/lib/employer-data"
 import type { TeamRole } from "@/lib/employer-types"
 import { Seo } from "@/components/seo"
 import { Badge } from "@/components/ui/badge"
@@ -354,7 +353,7 @@ export default function EmployerTeam() {
       ) : (
         <Card className="p-5">
           <ul className="space-y-3">
-            {activityLog.map(a => (
+            {state.activity.map(a => (
               <li
                 key={a.id}
                 className="flex items-start gap-3 rounded-lg border border-border bg-secondary/30 p-3"

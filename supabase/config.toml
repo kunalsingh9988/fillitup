@@ -1,0 +1,13 @@
+project_id = "qebcicrykxlrfcqtqqbk"
+
+[functions.ai]
+verify_jwt = true
+
+[functions.razorpay-order]
+verify_jwt = true
+
+[functions.razorpay-webhook]
+verify_jwt = false   # Razorpay calls it — verified by x-razorpay-signature instead
+
+[functions.send-email]
+verify_jwt = false   # internal calls check the service-role key manually

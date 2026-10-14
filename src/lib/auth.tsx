@@ -1,13 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react"
 
+import { supabase } from "./supabase/client"
 import type { Role } from "./types"
-
-/**
- * Mock auth provider — frontend-only implementation backed by
- * localStorage. The interface mirrors what Supabase auth will
- * provide (user object, role, sign in/out/up) so the swap is
- * a drop-in replacement in Phase: backend wiring.
- */
 
 export interface AuthUser {
   id: string
@@ -19,9 +13,9 @@ export interface AuthUser {
 interface AuthContextValue {
   user: AuthUser | null
   loading: boolean
-  signIn: (email: string, _password: string) => Promise<AuthUser>
-  signUp: (email: string, _password: string, name: string, role: Role) => Promise<AuthUser>
-  signInWithOAuth: (provider: "google" | "linkedin", role?: Role) => Promise<AuthUser>
+  signIn: (email: string, password: string) => Promise<AuthUser>
+  signUp: (email: string, password: string, name: string, role: Role) => Promise<AuthUser>
+  signInWithOAuth: (provider: "google" | "linkedin", role?: Role) => Promise<void>
   signOut: () => void
   requestPasswordReset: (email: string) => Promise<void>
   requestOtp: (phone: string) => Promise<void>
@@ -29,20 +23,43 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
+const PENDING_ROLE_KEY = "fillitup-oauth-role"
 
-const STORAGE_KEY = "fillitup-user"
-
-function persist(user: AuthUser | null) {
-  if (user) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(user))
-  else window.localStorage.removeItem(STORAGE_KEY)
+interface ProfileRow {
+  role: Role
+  full_name: string
 }
 
-function makeUser(email: string, role: Role, name?: string): AuthUser {
+async function fetchProfile(userId: string, email: string): Promise<AuthUser> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("role, full_name")
+    .eq("id", userId)
+    .maybeSingle<ProfileRow>()
+
+  if (!data) {
+    // first sign-in edge case — trigger should have created it; self-heal
+    const pendingRole = (window.localStorage.getItem(PENDING_ROLE_KEY) as Role) || "seeker"
+    await supabase
+      .from("profiles")
+      .upsert({ id: userId, role: pendingRole, full_name: email.split("@")[0] })
+    window.localStorage.removeItem(PENDING_ROLE_KEY)
+    return { id: userId, email, name: email.split("@")[0], role: pendingRole }
+  }
+
+  // OAuth signup: apply the role chosen on the signup screen before redirect
+  const pendingRole = window.localStorage.getItem(PENDING_ROLE_KEY) as Role | null
+  if (pendingRole && pendingRole !== data.role) {
+    await supabase.from("profiles").update({ role: pendingRole }).eq("id", userId)
+    data.role = pendingRole
+  }
+  window.localStorage.removeItem(PENDING_ROLE_KEY)
+
   return {
-    id: `demo-${Math.random().toString(36).slice(2, 10)}`,
+    id: userId,
     email,
-    name: name || email.split("@")[0],
-    role,
+    name: data.full_name || email.split("@")[0],
+    role: data.role,
   }
 }
 
@@ -51,68 +68,114 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY)
-      if (raw) setUser(JSON.parse(raw))
-    } catch {
-      /* corrupted storage — start logged out */
+    let mounted = true
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (mounted && session?.user) {
+        const u = await fetchProfile(session.user.id, session.user.email ?? "")
+        if (mounted) setUser(u)
+      }
+      if (mounted) setLoading(false)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        if (!mounted) return
+        if (session?.user) {
+          const u = await fetchProfile(session.user.id, session.user.email ?? "")
+          setUser(u)
+        } else {
+          setUser(null)
+        }
+        setLoading(false)
+      }
+    )
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
     }
-    setLoading(false)
   }, [])
 
-  const login = useCallback((u: AuthUser) => {
+  const signIn = useCallback(async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) throw error
+    if (!data.user) throw new Error("Sign-in failed")
+    const u = await fetchProfile(data.user.id, email)
     setUser(u)
-    persist(u)
+    return u
   }, [])
-
-  const signIn = useCallback(
-    async (email: string) => {
-      const u = makeUser(email, "seeker")
-      login(u)
-      return u
-    },
-    [login]
-  )
 
   const signUp = useCallback(
-    async (email: string, _password: string, name: string, role: Role) => {
-      const u = makeUser(email, role, name)
-      login(u)
-      return u
+    async (email: string, password: string, name: string, role: Role) => {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { role, full_name: name } },
+      })
+      if (error) throw error
+      if (!data.user) throw new Error("Sign-up failed")
+      // email-confirm enabled → no session yet; caller routes to check-email state
+      if (data.session) {
+        const u = await fetchProfile(data.user.id, email)
+        setUser(u)
+        return u
+      }
+      return {
+        id: data.user.id,
+        email,
+        name,
+        role,
+      }
     },
-    [login]
+    []
   )
 
   const signInWithOAuth = useCallback(
     async (provider: "google" | "linkedin", role: Role = "seeker") => {
-      const u = makeUser(`${provider}.user@fillitup.demo`, role, `${provider === "google" ? "Google" : "LinkedIn"} User`)
-      login(u)
-      return u
+      window.localStorage.setItem(PENDING_ROLE_KEY, role)
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: window.location.origin + "/app" },
+      })
+      if (error) {
+        window.localStorage.removeItem(PENDING_ROLE_KEY)
+        throw error
+      }
+      // redirect in progress — session arrives via onAuthStateChange
     },
-    [login]
+    []
   )
 
   const signOut = useCallback(() => {
+    void supabase.auth.signOut()
     setUser(null)
-    persist(null)
   }, [])
 
-  const requestPasswordReset = useCallback(async (_email: string) => {
-    // Supabase: supabase.auth.resetPasswordForEmail(email)
+  const requestPasswordReset = useCallback(async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + "/login",
+    })
+    if (error) throw error
   }, [])
 
-  const requestOtp = useCallback(async (_phone: string) => {
-    // Supabase: supabase.auth.signInWithOtp({ phone })
+  const requestOtp = useCallback(async (phone: string) => {
+    const { error } = await supabase.auth.signInWithOtp({ phone })
+    if (error) throw error
   }, [])
 
-  const verifyOtp = useCallback(
-    async (phone: string, _code: string) => {
-      const u = makeUser(`${phone.replace(/\D/g, "")}@phone.fillitup.demo`, "seeker")
-      login(u)
-      return u
-    },
-    [login]
-  )
+  const verifyOtp = useCallback(async (phone: string, code: string) => {
+    const { data, error } = await supabase.auth.verifyOtp({
+      phone,
+      token: code,
+      type: "sms",
+    })
+    if (error) throw error
+    if (!data.user) throw new Error("Verification failed")
+    const u = await fetchProfile(data.user.id, data.user.email ?? "")
+    setUser(u)
+    return u
+  }, [])
 
   return (
     <AuthContext.Provider
