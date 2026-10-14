@@ -2,6 +2,7 @@ import { useState } from "react"
 
 import { useAuth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
 import type { Role } from "@/lib/types"
 
 function GoogleIcon() {
@@ -33,6 +34,8 @@ export function OAuthButtons({ role, label }: { role?: Role; label?: string }) {
     try {
       // redirects the browser to the provider; session lands via onAuthStateChange
       await signInWithOAuth(provider, role)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Sign-in failed")
     } finally {
       setPending(null)
     }

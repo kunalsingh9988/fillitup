@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react"
 
-import { supabase } from "./supabase/client"
+import { assertSupabase, supabase } from "./supabase/client"
 import type { Role } from "./types"
 
 export interface AuthUser {
@@ -98,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signIn = useCallback(async (email: string, password: string) => {
+    assertSupabase()
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
     if (!data.user) throw new Error("Sign-in failed")
@@ -108,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = useCallback(
     async (email: string, password: string, name: string, role: Role) => {
+      assertSupabase()
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -133,6 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithOAuth = useCallback(
     async (provider: "google" | "linkedin", role: Role = "seeker") => {
+      assertSupabase()
       window.localStorage.setItem(PENDING_ROLE_KEY, role)
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
@@ -153,6 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const requestPasswordReset = useCallback(async (email: string) => {
+    assertSupabase()
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin + "/login",
     })
