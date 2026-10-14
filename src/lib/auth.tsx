@@ -136,7 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.localStorage.setItem(PENDING_ROLE_KEY, role)
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
-        options: { redirectTo: window.location.origin + "/app" },
+        options: { redirectTo: window.location.origin + "/auth/callback" },
       })
       if (error) {
         window.localStorage.removeItem(PENDING_ROLE_KEY)

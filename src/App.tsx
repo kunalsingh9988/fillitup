@@ -12,6 +12,7 @@ import TermsPage from "@/pages/terms"
 import LoginPage from "@/pages/auth/login"
 import SignupPage from "@/pages/auth/signup"
 import ForgotPasswordPage from "@/pages/auth/forgot-password"
+import AuthCallbackPage from "@/pages/auth/callback"
 import EmployerLayout from "@/components/employer/employer-layout"
 import EmployerDashboard from "@/pages/employer/dashboard"
 import EmployerCompanyProfile from "@/pages/employer/company-profile"
@@ -75,6 +76,7 @@ export default function App() {
         <Route path="signup" element={<SignupPage />} />
         <Route path="forgot-password" element={<ForgotPasswordPage />} />
       </Route>
+      <Route path="auth/callback" element={<AuthCallbackPage />} />
 
       {/* employer app */}
       <Route path="employer" element={<EmployerLayout />}>
