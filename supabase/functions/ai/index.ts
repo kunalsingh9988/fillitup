@@ -3,8 +3,15 @@
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from "npm:@supabase/supabase-js@2"
 
-const GEMINI_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+// newest-first; each is tried in turn on 404 (not enabled for this key)
+// or 429/5xx (rate limit / saturation). Free-tier models throttle often.
+const MODELS = [
+  "gemini-3.8-flash",
+  "gemini-3.5-flash",
+  "gemini-3.1-flash-lite",
+]
+const GEMINI_URL = (m: string) =>
+  `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -18,18 +25,40 @@ const json = (body: unknown, status = 200) =>
   })
 
 async function gemini(prompt: string, key: string): Promise<string> {
-  const res = await fetch(`${GEMINI_URL}?key=${key}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.4, responseMimeType: "application/json" },
-    }),
-  })
-  if (!res.ok) throw new Error(`Gemini ${res.status}: ${await res.text()}`)
-  const data = await res.json()
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
-  return text
+  let lastErr = "all models failed"
+  for (const model of MODELS) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch(`${GEMINI_URL(model)}?key=${key}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(20_000),   // never let one model stall the fn
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.4, responseMimeType: "application/json" },
+          }),
+        })
+        if (!res.ok) {
+          lastErr = `${model} ${res.status}`
+          if (res.status === 404 || res.status >= 500) break // try next model
+          if (res.status === 429 && attempt === 0) {
+            await new Promise(r => setTimeout(r, 800))
+            continue // one retry on rate limit
+          }
+          break
+        }
+        const data = await res.json()
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+        if (text) return text
+        lastErr = `${model} empty`
+        break
+      } catch (e) {
+        lastErr = `${model} ${e}`
+        break
+      }
+    }
+  }
+  throw new Error(`Gemini ${lastErr}`)
 }
 
 async function geminiJson<T>(prompt: string, key: string, fallback: T): Promise<T> {

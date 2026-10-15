@@ -108,11 +108,12 @@ Deno.serve(async (req) => {
     await supabase.from("credit_transactions").insert({
       user_id: order.user_id, delta: pack.credits, reason: pack.label,
     })
-    // keep denormalized balance in sync
-    const { data: p } = await supabase.from("profiles").select("credits").eq("id", order.user_id).single()
-    await supabase.from("profiles")
-      .update({ credits: (p?.credits ?? 0) + pack.credits })
-      .eq("id", order.user_id)
+    // keep denormalized balance in sync (credits live on seeker_profiles)
+    const { data: p } = await supabase.from("seeker_profiles").select("credits").eq("user_id", order.user_id).maybeSingle()
+    await supabase.from("seeker_profiles").upsert(
+      { user_id: order.user_id, credits: (p?.credits ?? 0) + pack.credits },
+      { onConflict: "user_id" }
+    )
   }
 
   await supabase.from("invoices").insert({

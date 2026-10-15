@@ -152,13 +152,24 @@ export function MentorProvider({ children }: { children: ReactNode }) {
     } catch { /* non-fatal */ }
   }, [state])
 
+  /* FK anchor — mentor tables reference mentor_profiles(user_id), which
+     only exists after the first profile save. Ensure it before writes. */
+  const mentorReady = useCallback(async (id: string) => {
+    await supabase
+      .from("mentor_profiles")
+      .upsert({ user_id: id }, { onConflict: "user_id" })
+  }, [])
+
   const db = useCallback(
     (fn: (uid: string) => PromiseLike<unknown>) => {
       const id = uidRef.current
       if (id && remoteRef.current)
-        void Promise.resolve(fn(id)).catch((e: unknown) => console.error("db write failed", e))
+        void (async () => {
+          await mentorReady(id)
+          await fn(id)
+        })().catch((e: unknown) => console.error("db write failed", e))
     },
-    []
+    [mentorReady]
   )
 
   const PROFILE_COLS: Partial<Record<keyof MentorProfile, string>> = {

@@ -178,13 +178,27 @@ export function SeekerProvider({ children }: { children: ReactNode }) {
 
   const uidRef = useRef<string | null>(null)
   uidRef.current = user?.id ?? null
+
+  /* FK anchor — most seeker tables reference seeker_profiles(user_id),
+     which only exists after the profile row is created. Ensure it before
+     every write so inserts never hit a dangling FK and profile-column
+     updates never silently no-op on a missing row. */
+  const seekerReady = useCallback(async (id: string) => {
+    await supabase
+      .from("seeker_profiles")
+      .upsert({ user_id: id }, { onConflict: "user_id" })
+  }, [])
+
   const db = useCallback(
     (fn: (uid: string) => PromiseLike<unknown>) => {
       const id = uidRef.current
       if (id && remoteRef.current)
-        void Promise.resolve(fn(id)).catch((e: unknown) => console.error("db write failed", e))
+        void (async () => {
+          await seekerReady(id)
+          await fn(id)
+        })().catch((e: unknown) => console.error("db write failed", e))
     },
-    []
+    [seekerReady]
   )
 
   /* ---------- profile ---------- */
