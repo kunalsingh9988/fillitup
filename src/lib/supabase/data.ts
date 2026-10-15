@@ -347,11 +347,12 @@ export async function loadEmployerState(
   const jobIds = (await supabase.from("jobs").select("id").eq("company_id", companyId)).data?.map((j: any) => j.id) ?? []
 
   const [
-    companyRes, membersRes, jobsRes, appsRes, notesRes, activityRes,
+    companyRes, membersRes, invitesRes, jobsRes, appsRes, notesRes, activityRes,
     notifsRes, convRes,
   ] = await Promise.all([
     supabase.from("companies").select("*").eq("id", companyId).single(),
     supabase.from("company_members").select("*, profiles(full_name)").eq("company_id", companyId),
+    supabase.from("company_invites").select("*").eq("company_id", companyId).eq("status", "pending"),
     supabase.from("jobs").select("*, applications(count)").eq("company_id", companyId).order("created_at", { ascending: false }),
     jobIds.length
       ? supabase.from("applications").select("*, seeker_profiles(*, profiles!seeker_profiles_user_id_fkey(full_name)), jobs(title)").in("job_id", jobIds)
@@ -415,13 +416,22 @@ export async function loadEmployerState(
       assignedTo: a.assigned_to ?? undefined,
       notes: (notesByApp.get(a.id) ?? []).map((n: any) => ({ id: n.id, text: n.body, ago: timeAgo(n.created_at) })),
     })),
-    team: (membersRes.data ?? []).map((m: any): TeamMember => ({
-      id: m.user_id, name: m.profiles?.full_name ?? "Member",
-      initials: initials(m.profiles?.full_name ?? "?"),
-      email: m.email ?? "", phone: m.phone ?? "",
-      role: (m.title || m.member_role) as TeamMember["role"],
-      pending: m.status === "invited",
-    })),
+    team: [
+      ...(membersRes.data ?? []).map((m: any): TeamMember => ({
+        id: m.user_id, name: m.profiles?.full_name ?? "Member",
+        initials: initials(m.profiles?.full_name ?? "?"),
+        email: m.email ?? "", phone: m.phone ?? "",
+        role: (m.title || m.member_role) as TeamMember["role"],
+        pending: m.status === "invited",
+      })),
+      ...(invitesRes.data ?? []).map((i: any): TeamMember => ({
+        id: i.id, name: i.email.split("@")[0],
+        initials: initials(i.email.split("@")[0]),
+        email: i.email, phone: i.phone ?? "",
+        role: (i.title || i.role) as TeamMember["role"],
+        pending: true,
+      })),
+    ],
     activity: (activityRes.data ?? []).map((a: any) => ({
       id: a.id, actor: a.profiles?.full_name ?? "System", action: a.text, ago: timeAgo(a.created_at),
     })),

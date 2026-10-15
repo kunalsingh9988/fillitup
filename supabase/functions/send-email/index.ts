@@ -51,10 +51,15 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("RESEND_API_KEY")
   if (!key) return json({ error: "RESEND_API_KEY not configured" }, 500)
 
-  // service-role calls only — check a shared secret so the function isn't public
-  const expected = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
-  const auth = req.headers.get("Authorization") ?? ""
-  if (expected && auth !== `Bearer ${expected}`)
+  // internal callers only — dedicated secret (env SUPABASE_SERVICE_ROLE_KEY
+  // uses the new key format, so equality against the legacy JWT fails)
+  const allowed = [
+    Deno.env.get("INTERNAL_CALL_SECRET"),
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+    ...(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "").split(","),
+  ].filter(Boolean)
+  const auth = (req.headers.get("Authorization") ?? "").replace("Bearer ", "")
+  if (allowed.length && !allowed.includes(auth))
     return json({ error: "Unauthorized" }, 401)
 
   const { template, to, data } = await req.json().catch(() => ({}))

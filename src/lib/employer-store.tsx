@@ -177,15 +177,28 @@ export function EmployerProvider({ children }: { children: ReactNode }) {
     } catch { /* non-fatal */ }
   }, [state])
 
+  /* Company bootstrap — an employer's first remote write may arrive before
+     any company exists. create_company() (SECURITY DEFINER rpc) makes the
+     company + this user as its admin member in one shot. */
+  const ensureCompany = useCallback(async () => {
+    if (!companyIdRef.current) {
+      const { data, error } = await supabase.rpc("create_company", { p_name: "My Company" })
+      if (error) throw error
+      companyIdRef.current = data ?? null
+    }
+    return companyIdRef.current
+  }, [])
+
   const db = useCallback(
     (fn: (uid: string, companyId: string | null) => PromiseLike<unknown>) => {
       const id = uidRef.current
       if (id && remoteRef.current)
-        void Promise.resolve(fn(id, companyIdRef.current)).catch((e: unknown) =>
-          console.error("db write failed", e)
-        )
+        void (async () => {
+          const cid = await ensureCompany()
+          await fn(id, cid)
+        })().catch((e: unknown) => console.error("db write failed", e))
     },
-    []
+    [ensureCompany]
   )
 
   const addJob = useCallback((job: EmployerJob) => {
@@ -336,23 +349,38 @@ export function EmployerProvider({ children }: { children: ReactNode }) {
   const addTeamMember = useCallback((m: TeamMember) => {
     const withId = { ...m, id: m.id || uid() }
     setState(s => ({ ...s, team: [...s.team, withId] }))
-    db((_me, companyId) => companyId
-      ? supabase.from("company_members").insert({
-          company_id: companyId, user_id: withId.id,
-          member_role: "recruiter", status: m.pending ? "invited" : "active",
-          title: m.role, email: m.email, phone: m.phone,
-        })
-      : Promise.resolve())
+    // Invited teammates have no auth user yet → track in company_invites
+    // (company_members.user_id FK needs a real profile).
+    if (m.pending) {
+      db((me, companyId) => companyId
+        ? supabase.from("company_invites").insert({
+            company_id: companyId, invited_by: me,
+            email: m.email, role: m.role, title: m.role, phone: m.phone,
+          })
+        : Promise.resolve())
+    } else {
+      db((_me, companyId) => companyId
+        ? supabase.from("company_members").insert({
+            company_id: companyId, user_id: withId.id,
+            member_role: "recruiter", status: "active",
+            title: m.role, email: m.email, phone: m.phone,
+          })
+        : Promise.resolve())
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [db])
 
   const removeTeamMember = useCallback((id: string) => {
+    const member = state.team.find(t => t.id === id)
     setState(s => ({ ...s, team: s.team.filter(t => t.id !== id) }))
-    db((_me, companyId) => companyId
-      ? supabase.from("company_members").delete().eq("company_id", companyId).eq("user_id", id)
-      : Promise.resolve())
+    db((_me, companyId) => {
+      if (!companyId) return Promise.resolve()
+      return member?.pending
+        ? supabase.from("company_invites").delete().eq("company_id", companyId).eq("id", id)
+        : supabase.from("company_members").delete().eq("company_id", companyId).eq("user_id", id)
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [db])
+  }, [db, state.team])
 
   const setStepDone = useCallback((id: string, done: boolean) => {
     setState(s => {

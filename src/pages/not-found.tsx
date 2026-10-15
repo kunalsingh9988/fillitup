@@ -1,27 +1,22 @@
 import { Link } from "react-router-dom"
-import { ArrowLeft, SearchX } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import { Seo } from "@/components/seo"
+import { Button } from "@/components/ui/button"
 
 export default function NotFoundPage() {
   return (
-    <div className="dot-grid flex min-h-screen flex-col items-center justify-center bg-background px-6 text-center">
+    <>
       <Seo title="Page not found" />
-      <div className="flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-        <SearchX className="size-8" />
+      <div className="flex min-h-[70vh] flex-col items-center justify-center gap-4 px-4 text-center">
+        <p className="font-mono text-6xl font-bold text-muted-foreground/40">404</p>
+        <h1 className="text-2xl font-bold">Page not found</h1>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          The page you're looking for doesn't exist or has been moved.
+        </p>
+        <Button asChild className="mt-2">
+          <Link to="/">Back to home</Link>
+        </Button>
       </div>
-      <h1 className="mt-6 font-mono text-5xl font-bold text-foreground">404</h1>
-      <p className="mt-2 text-lg font-medium text-foreground">This page doesn't exist</p>
-      <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
-        The link may be broken, or the page may have moved. Let's get you back on track.
-      </p>
-      <Button asChild className="mt-7">
-        <Link to="/">
-          <ArrowLeft className="size-4" />
-          Back to home
-        </Link>
-      </Button>
-    </div>
+    </>
   )
 }
