@@ -421,7 +421,7 @@ export function SeekerProvider({ children }: { children: ReactNode }) {
       const { data: plan } = await supabase.from("mentor_plans").select("mentor_id").eq("id", planId).single()
       if (plan)
         await supabase.from("mentor_subscriptions").insert({
-          plan_id: planId, mentor_id: plan.mentor_id, mentee_id: me, status: "active",
+          plan_id: planId, mentor_id: plan.mentor_id, mentee_id: me, status: "pending",
         })
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
