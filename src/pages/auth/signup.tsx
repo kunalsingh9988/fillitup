@@ -62,10 +62,15 @@ export default function SignupPage() {
     if (Object.keys(next).length || !role) return
 
     setPending(true)
-    const user = await signUp(email, password, name.trim(), role)
-    setPending(false)
-    toast.success("Account created", { description: "Welcome to Fill-it-up." })
-    navigate(roleHome(user.role))
+    try {
+      const user = await signUp(email, password, name.trim(), role)
+      toast.success("Account created", { description: "Welcome to Fill-it-up." })
+      navigate(roleHome(user.role))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Sign-up failed")
+    } finally {
+      setPending(false)
+    }
   }
 
   return (

@@ -26,12 +26,13 @@ const PENDING_ROLE_KEY = "fillitup-oauth-role"
 interface ProfileRow {
   role: Role
   full_name: string
+  created_at: string
 }
 
 async function fetchProfile(userId: string, email: string): Promise<AuthUser> {
   const { data } = await supabase
     .from("profiles")
-    .select("role, full_name")
+    .select("role, full_name, created_at")
     .eq("id", userId)
     .maybeSingle<ProfileRow>()
 
@@ -45,9 +46,12 @@ async function fetchProfile(userId: string, email: string): Promise<AuthUser> {
     return { id: userId, email, name: email.split("@")[0], role: pendingRole }
   }
 
-  // OAuth signup: apply the role chosen on the signup screen before redirect
+  // OAuth signup: apply the role chosen on the signup screen before redirect.
+  // Only for brand-new profiles — an existing employer/mentor signing in
+  // again must never be downgraded by a stale pending role.
   const pendingRole = window.localStorage.getItem(PENDING_ROLE_KEY) as Role | null
-  if (pendingRole && pendingRole !== data.role) {
+  const isNewProfile = Date.now() - new Date(data.created_at).getTime() < 15 * 60 * 1000
+  if (pendingRole && isNewProfile && pendingRole !== data.role) {
     await supabase.from("profiles").update({ role: pendingRole }).eq("id", userId)
     data.role = pendingRole
   }
@@ -132,9 +136,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const signInWithOAuth = useCallback(
-    async (provider: "google" | "linkedin", role: Role = "seeker") => {
+    async (provider: "google" | "linkedin", role?: Role) => {
       assertSupabase()
-      window.localStorage.setItem(PENDING_ROLE_KEY, role)
+      // role is set only when the user picked one on the signup screen —
+      // plain logins must not carry a pending role (it would downgrade
+      // existing employer/mentor accounts to seeker).
+      if (role) window.localStorage.setItem(PENDING_ROLE_KEY, role)
+      else window.localStorage.removeItem(PENDING_ROLE_KEY)
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: { redirectTo: window.location.origin + "/auth/callback" },
