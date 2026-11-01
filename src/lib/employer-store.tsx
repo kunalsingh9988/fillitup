@@ -48,6 +48,13 @@ export interface EmployerState {
   activity: ActivityEntry[]
 }
 
+const blankCompany: CompanyProfile = {
+  name: "My Company", initials: "MC", industry: "", location: "", size: "",
+  openRoles: 0, plan: "Free", website: "", linkedin: "", twitter: "",
+  about: "", founded: "", headquarters: "", funding: "", revenue: "",
+  techStack: [], benefits: [], values: [], locations: [],
+}
+
 const defaultSettings: EmployerSettings = {
   blindHiring: false,
   twoFactor: false,
@@ -157,11 +164,17 @@ export function EmployerProvider({ children }: { children: ReactNode }) {
         if (!alive) return
         remoteRef.current = true
         companyIdRef.current = s.companyId ?? null
+        // First-time employer (switched workspace, no company yet): don't show
+        // seed jobs/candidates/team — start blank until they set up.
+        const fresh = !s.companyId
         setState(prev => ({
           ...prev,
           ...s,
-          company: s.company ?? prev.company,
+          company: s.company ?? (fresh ? blankCompany : prev.company),
           settings: { ...prev.settings, ...(s.settings ?? {}) },
+          ...(fresh
+            ? { jobs: [], candidates: [], team: [], activity: [], conversations: [] }
+            : {}),
         } as EmployerState))
       })
       .catch(err => console.error("employer load failed", err))

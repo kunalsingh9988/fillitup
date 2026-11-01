@@ -17,6 +17,7 @@ interface AuthContextValue {
   signUp: (email: string, password: string, name: string, role: Role) => Promise<AuthUser>
   signInWithOAuth: (provider: "google" | "linkedin", role?: Role) => Promise<void>
   signOut: () => void
+  updateRole: (role: Role) => Promise<void>
   requestPasswordReset: (email: string) => Promise<void>
 }
 
@@ -161,6 +162,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }, [])
 
+  // Multi-role accounts: profiles.role tracks the workspace the user is
+  // currently in (seeker/employer/mentor all usable from one account), so
+  // the next login lands on the dashboard they last used.
+  const updateRole = useCallback(
+    async (role: Role) => {
+      setUser(u => (u ? { ...u, role } : u))
+      if (user)
+        await supabase.from("profiles").update({ role }).eq("id", user.id)
+    },
+    [user]
+  )
+
   const requestPasswordReset = useCallback(async (email: string) => {
     assertSupabase()
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -178,6 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signUp,
         signInWithOAuth,
         signOut,
+        updateRole,
         requestPasswordReset,
       }}
     >

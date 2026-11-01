@@ -1,18 +1,23 @@
 import { useState, type ReactNode } from "react"
-import { Link, NavLink, Outlet, useNavigate } from "react-router-dom"
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom"
 import {
   Bell,
+  BriefcaseBusiness,
   Building2,
+  Check,
   ChevronsUpDown,
+  GraduationCap,
   LogOut,
   Menu,
   Settings,
+  UserRoundSearch,
   X,
   type LucideIcon,
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth"
+import type { Role } from "@/lib/types"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -125,9 +130,26 @@ function NotificationsPopover({
   )
 }
 
+const WORKSPACES: { role: Role; label: string; to: string; icon: LucideIcon }[] = [
+  { role: "seeker", label: "Job Seeker", to: "/app", icon: UserRoundSearch },
+  { role: "employer", label: "Employer", to: "/employer", icon: BriefcaseBusiness },
+  { role: "mentor", label: "Mentor", to: "/mentor", icon: GraduationCap },
+]
+
 function UserMenu({ user, settingsPath }: { user: ShellUser; settingsPath: string }) {
-  const { signOut } = useAuth()
+  const { user: authUser, signOut, updateRole } = useAuth()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
+
+  const currentRole: Role =
+    pathname.startsWith("/employer") ? "employer"
+    : pathname.startsWith("/mentor") ? "mentor"
+    : "seeker"
+
+  const switchWorkspace = (w: (typeof WORKSPACES)[number]) => {
+    if (w.role !== currentRole) void updateRole(w.role)
+    navigate(w.to)
+  }
 
   return (
     <DropdownMenu>
@@ -146,6 +168,21 @@ function UserMenu({ user, settingsPath }: { user: ShellUser; settingsPath: strin
           <p className="text-sm font-medium">{user.name}</p>
           <p className="text-xs font-normal text-muted-foreground">{user.email}</p>
         </DropdownMenuLabel>
+        {authUser && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[11px] font-normal uppercase tracking-wider text-muted-foreground">
+              Switch workspace
+            </DropdownMenuLabel>
+            {WORKSPACES.map(w => (
+              <DropdownMenuItem key={w.role} onClick={() => switchWorkspace(w)}>
+                <w.icon className="size-4" />
+                <span className="flex-1">{w.label}</span>
+                {w.role === currentRole && <Check className="size-4 text-primary" />}
+              </DropdownMenuItem>
+            ))}
+          </>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => navigate(settingsPath)}>
           <Settings className="size-4" /> Account settings
