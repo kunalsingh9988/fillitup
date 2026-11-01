@@ -471,7 +471,22 @@ export function SeekerProvider({ children }: { children: ReactNode }) {
         ],
       }
     })
-    if (ok) db(me => supabase.from("credit_transactions").insert({ user_id: me, delta: -amount, reason: label }))
+    if (ok)
+      // server-authoritative spend — reverts the optimistic UI if the
+      // real balance can't cover it
+      supabase
+        .rpc("spend_credits", { p_amount: amount, p_reason: label })
+        .then(({ error, data }) => {
+          if (!error) {
+            setState(s => ({ ...s, credits: data as number }))
+            return
+          }
+          setState(s => ({
+            ...s,
+            credits: s.credits + amount,
+            creditTxns: s.creditTxns.filter(t => !(t.label === label && t.amount === -amount)).slice(0, 50),
+          }))
+        })
     return ok
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [db])

@@ -1,5 +1,7 @@
-// Creates a Razorpay order for seeker plans/credits or mentor subscriptions.
-// POST /functions/v1/razorpay-order  { kind: "credits"|"mentor", planKey?, mentorPlanId?, amountInr }
+// Creates a Razorpay order for credit packs, seeker plans, or mentor
+// subscriptions. Prices come only from the database — the client picks
+// WHAT to buy, never how much.
+// POST /functions/v1/razorpay-order  { kind: "credits"|"seeker_plan"|"mentor", planKey?, mentorPlanId? }
 // deno-lint-ignore-file no-explicit-any
 import { createClient } from "npm:@supabase/supabase-js@2"
 
@@ -30,10 +32,41 @@ Deno.serve(async (req) => {
   )
   if (authErr || !user) return json({ error: "Unauthorized" }, 401)
 
-  const { kind, mentorPlanId, amountInr } = await req.json().catch(() => ({}))
-  const amountPaise = Math.round(Number(amountInr) * 100)
-  if (!amountPaise || amountPaise < 100) return json({ error: "Invalid amount" }, 400)
-  if (kind === "mentor" && !mentorPlanId) return json({ error: "mentorPlanId required" }, 400)
+  const { kind, planKey, mentorPlanId } = await req.json().catch(() => ({}))
+
+  /* ---- resolve price server-side ---- */
+  let amountPaise: number
+  let purpose: string
+  let referenceId: string | null = null
+  let meta: Record<string, unknown> = {}
+  let description: string
+
+  if (kind === "mentor") {
+    if (!mentorPlanId) return json({ error: "mentorPlanId required" }, 400)
+    const { data: plan } = await supabase
+      .from("mentor_plans")
+      .select("id, name, price, mentor_id, published")
+      .eq("id", mentorPlanId).single()
+    if (!plan || !plan.published) return json({ error: "Plan not available" }, 404)
+    if (plan.mentor_id === user.id) return json({ error: "Cannot buy your own plan" }, 400)
+    amountPaise = Math.round(Number(plan.price) * 100)
+    purpose = "mentor_subscription"
+    referenceId = plan.id
+    meta = { plan_id: plan.id, mentor_id: plan.mentor_id }
+    description = plan.name
+  } else if (kind === "credits" || kind === "seeker_plan") {
+    if (!planKey) return json({ error: "planKey required" }, 400)
+    const { data: item } = await supabase
+      .from("price_items")
+      .select("*").eq("key", planKey).eq("kind", kind).eq("active", true).single()
+    if (!item) return json({ error: "Unknown plan" }, 404)
+    amountPaise = item.amount_paise
+    purpose = kind === "credits" ? "credits" : "seeker_plan"
+    meta = { plan_key: item.key, credits: item.credits }
+    description = item.label
+  } else {
+    return json({ error: "kind must be credits|seeker_plan|mentor" }, 400)
+  }
 
   const receipt = `fiu_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
   const rzpRes = await fetch("https://api.razorpay.com/v1/orders", {
@@ -46,7 +79,7 @@ Deno.serve(async (req) => {
       amount: amountPaise,
       currency: "INR",
       receipt,
-      notes: { kind, user_id: user.id, mentor_plan_id: mentorPlanId ?? "" },
+      notes: { purpose, user_id: user.id, ...meta },
     }),
   })
   if (!rzpRes.ok) return json({ error: `Razorpay: ${await rzpRes.text()}` }, 502)
@@ -55,11 +88,12 @@ Deno.serve(async (req) => {
   await supabase.from("orders").insert({
     user_id: user.id,
     razorpay_order_id: order.id,
-    purpose: kind === "mentor" ? "mentor_subscription" : "credits",
-    reference_id: mentorPlanId ?? null,
+    purpose,
+    reference_id: referenceId,
     amount: amountPaise,
     currency: "INR",
     status: "created",
+    meta,
   })
 
   return json({
@@ -67,5 +101,6 @@ Deno.serve(async (req) => {
     amount: order.amount,
     currency: order.currency,
     keyId, // publishable — safe for checkout.js
+    description,
   })
 })

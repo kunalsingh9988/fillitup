@@ -22,47 +22,39 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
-const PENDING_ROLE_KEY = "fillitup-oauth-role"
 
 interface ProfileRow {
   role: Role
   full_name: string
-  created_at: string
 }
 
 async function fetchProfile(userId: string, email: string): Promise<AuthUser> {
   const { data } = await supabase
     .from("profiles")
-    .select("role, full_name, created_at")
+    .select("role, full_name")
     .eq("id", userId)
     .maybeSingle<ProfileRow>()
 
   if (!data) {
-    // first sign-in edge case — trigger should have created it; self-heal
-    const pendingRole = (window.localStorage.getItem(PENDING_ROLE_KEY) as Role) || "seeker"
+    // trigger should have created it; self-heal inserts role='seeker' only
+    // (profiles.role is not client-writable — signup role goes through
+    // handle_new_user metadata or the set-signup-role function).
     await supabase
       .from("profiles")
-      .upsert({ id: userId, role: pendingRole, full_name: email.split("@")[0] })
-    window.localStorage.removeItem(PENDING_ROLE_KEY)
-    return { id: userId, email, name: email.split("@")[0], role: pendingRole }
+      .upsert({ id: userId, full_name: email.split("@")[0] })
+    return { id: userId, email, name: email.split("@")[0], role: "seeker" }
   }
 
-  // OAuth signup: apply the role chosen on the signup screen before redirect.
-  // Only for brand-new profiles — an existing employer/mentor signing in
-  // again must never be downgraded by a stale pending role.
-  const pendingRole = window.localStorage.getItem(PENDING_ROLE_KEY) as Role | null
-  const isNewProfile = Date.now() - new Date(data.created_at).getTime() < 15 * 60 * 1000
-  if (pendingRole && isNewProfile && pendingRole !== data.role) {
-    await supabase.from("profiles").update({ role: pendingRole }).eq("id", userId)
-    data.role = pendingRole
-  }
-  window.localStorage.removeItem(PENDING_ROLE_KEY)
+  // workspace override — the role the user was last operating in
+  const { data: settings } = await supabase
+    .from("user_settings").select("data").eq("user_id", userId).maybeSingle()
+  const workspace = (settings?.data as { workspace?: Role } | null)?.workspace
 
   return {
     id: userId,
     email,
     name: data.full_name || email.split("@")[0],
-    role: data.role,
+    role: workspace ?? data.role,
   }
 }
 
@@ -139,19 +131,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithOAuth = useCallback(
     async (provider: "google" | "linkedin", role?: Role) => {
       assertSupabase()
-      // role is set only when the user picked one on the signup screen —
-      // plain logins must not carry a pending role (it would downgrade
-      // existing employer/mentor accounts to seeker).
-      if (role) window.localStorage.setItem(PENDING_ROLE_KEY, role)
-      else window.localStorage.removeItem(PENDING_ROLE_KEY)
+      // the chosen signup role rides on the redirect URL and is applied
+      // server-side by the set-signup-role function in the callback
+      const redirectTo =
+        window.location.origin + "/auth/callback" + (role ? `?role=${role}` : "")
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
-        options: { redirectTo: window.location.origin + "/auth/callback" },
+        options: { redirectTo },
       })
-      if (error) {
-        window.localStorage.removeItem(PENDING_ROLE_KEY)
-        throw error
-      }
+      if (error) throw error
       // redirect in progress — session arrives via onAuthStateChange
     },
     []
@@ -162,14 +150,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }, [])
 
-  // Multi-role accounts: profiles.role tracks the workspace the user is
-  // currently in (seeker/employer/mentor all usable from one account), so
-  // the next login lands on the dashboard they last used.
+  // Multi-role accounts: the current workspace (seeker/employer/mentor —
+  // all usable from one account) is persisted in user_settings, so the
+  // next login lands on the dashboard they last used. profiles.role is
+  // the immutable signup role and is never written here.
   const updateRole = useCallback(
     async (role: Role) => {
       setUser(u => (u ? { ...u, role } : u))
-      if (user)
-        await supabase.from("profiles").update({ role }).eq("id", user.id)
+      if (!user) return
+      const { data: row } = await supabase
+        .from("user_settings").select("data").eq("user_id", user.id).maybeSingle()
+      await supabase.from("user_settings").upsert(
+        { user_id: user.id, data: { ...((row?.data as object) ?? {}), workspace: role } },
+        { onConflict: "user_id" }
+      )
     },
     [user]
   )

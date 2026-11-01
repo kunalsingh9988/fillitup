@@ -21,19 +21,21 @@ function loadCheckout(): Promise<void> {
 }
 
 export interface CheckoutOpts {
-  amountInr: number
-  kind: "credits" | "mentor"
+  kind: "credits" | "seeker_plan" | "mentor"
+  planKey?: string
   mentorPlanId?: string
   description: string
   prefill?: { name?: string; email?: string }
 }
 
+/* The client picks WHAT to buy — the amount is resolved server-side from
+   price_items / mentor_plans and never accepted from the browser. */
 export async function openCheckout(opts: CheckoutOpts): Promise<void> {
   const { data, error } = await supabase.functions.invoke("razorpay-order", {
     body: {
       kind: opts.kind,
+      planKey: opts.planKey,
       mentorPlanId: opts.mentorPlanId,
-      amountInr: opts.amountInr,
     },
   })
   if (error) throw new Error(error.message)

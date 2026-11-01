@@ -2,27 +2,44 @@ import { useEffect } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 
 import { roleHome, useAuth } from "@/lib/auth"
+import { supabase } from "@/lib/supabase/client"
+import type { Role } from "@/lib/types"
 
 /* OAuth landing route — Supabase redirects here with ?code=…,
    the client exchanges it for a session (detectSessionInUrl),
-   then we send the user to their role's home. */
+   then we send the user to their role's home.
+   ?role= is carried from the signup screen — profiles.role is not
+   client-writable, so it goes through the set-signup-role function. */
 export default function AuthCallbackPage() {
-  const { user, loading } = useAuth()
+  const { user, loading, updateRole } = useAuth()
   const navigate = useNavigate()
   const [params] = useSearchParams()
 
   const error = params.get("error_description") || params.get("error")
+  const role = params.get("role") as Role | null
 
   useEffect(() => {
-    if (!loading && user) {
-      navigate(roleHome(user.role), { replace: true })
+    if (loading) return
+    if (!user) {
+      // no session and nothing in flight → bounced; back to login
+      if (!params.get("code")) navigate("/login", { replace: true })
       return
     }
-    // no session and nothing in flight → bounced; back to login
-    if (!loading && !user && !params.get("code")) {
-      navigate("/login", { replace: true })
+    if (role) {
+      // signup path: apply the chosen role server-side (only valid for
+      // brand-new accounts), then persist it as the current workspace
+      supabase.functions
+        .invoke("set-signup-role", { body: { role } })
+        .catch(() => {})
+        .finally(() => {
+          updateRole(role).finally(() =>
+            navigate(roleHome(role), { replace: true })
+          )
+        })
+      return
     }
-  }, [loading, user, navigate, params])
+    navigate(roleHome(user.role), { replace: true })
+  }, [loading, user, role, navigate, params, updateRole])
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 px-4 text-center">
